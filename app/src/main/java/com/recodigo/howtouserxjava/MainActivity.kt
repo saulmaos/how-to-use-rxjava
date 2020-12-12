@@ -6,19 +6,69 @@ import android.util.Log
 import io.reactivex.Observable
 import io.reactivex.Observer
 import io.reactivex.android.schedulers.AndroidSchedulers
+import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
+import io.reactivex.exceptions.UndeliverableException
+import io.reactivex.plugins.RxJavaPlugins
 import io.reactivex.schedulers.Schedulers
 import kotlinx.android.synthetic.main.activity_main.*
+import java.lang.Exception
 
 class MainActivity : AppCompatActivity() {
     companion object {
         private const val TAG = "MainActivity"
     }
+    private val compositeDisposable = CompositeDisposable()
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        simpleImpl()
+//        simpleImpl()
+        secondImpl()
+        setListener()
+    }
+
+    private fun setListener() {
+        btnCancel.setOnClickListener { compositeDisposable.dispose() } // this cancels all the observables
+    }
+
+    private fun secondImpl() {
+        val observable = Observable.create<Int> { emitter ->
+            (1..5).forEach {
+                Log.d(TAG, "Observable - thread: ${Thread.currentThread().name}")
+                Log.d(TAG, "Observable - dispose: ${emitter.isDisposed}") // to know if the observable has been canceled
+                // If the observable has been disposed, it will return
+                if (emitter.isDisposed) return@create
+                emitter.onNext(it)
+                try {
+                    Thread.sleep(3000) // it will sleep for 3 seconds
+                } catch (e: InterruptedException) {
+                    e.printStackTrace()
+                    if (!emitter.isDisposed)
+                        emitter.onError(e) // It will never be called because the observable has already been disposed when this error occurs
+                }
+            }
+            if (!emitter.isDisposed)
+                emitter.onComplete()
+        }
+        observable
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(
+                        {
+                            // onNext
+                            Log.d(TAG, "onNext: $it - ${Thread.currentThread().name}")
+                        },
+                        {
+                            // onError
+                            Log.d(TAG, "onError")
+                            it.printStackTrace()
+                        },
+                        {
+                            // onComplete
+                            Log.d(TAG, "onComplete: ${Thread.currentThread().name}")
+                        }
+                ).let { compositeDisposable.add(it) }
     }
 
     private fun simpleImpl() {
