@@ -24,8 +24,47 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
 //        simpleImpl()
-        secondImpl()
+//        secondImpl()
+        thirdImpl()
         setListener()
+    }
+
+    private fun thirdImpl() {
+        val databaseObservable = Observable.create<User> { emitter ->
+            if (emitter.isDisposed) return@create
+            val user = Database().getUser()
+            emitter.onNext(user)
+            emitter.onComplete()
+        }
+
+        databaseObservable
+                .flatMap {
+                    getRemoteUserObservable(it.email)
+                }
+                .map {
+                    "This is the url = ${it.profilePicUrl}"
+                }
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(
+                        {
+                            Log.d(TAG, "onNext: $it")
+//                            Log.d(TAG, "onNext: ${it.name} - ${it.profilePicUrl}")
+                        },
+                        {
+                            it.printStackTrace()
+                        }
+                )
+                .let { compositeDisposable.add(it) }
+    }
+
+    private fun getRemoteUserObservable(email: String): Observable<RemoteUser> {
+        return Observable.create<RemoteUser> { emitter ->
+            if (emitter.isDisposed) return@create
+            val remoteUser = ApiService().getRemoteUser(email)
+            emitter.onNext(remoteUser)
+            emitter.onComplete()
+        }
     }
 
     private fun setListener() {
