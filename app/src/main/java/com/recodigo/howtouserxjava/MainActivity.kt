@@ -3,14 +3,12 @@ package com.recodigo.howtouserxjava
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.util.Log
-import io.reactivex.Observable
-import io.reactivex.Observer
+import io.reactivex.*
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
-import io.reactivex.exceptions.UndeliverableException
-import io.reactivex.plugins.RxJavaPlugins
 import io.reactivex.schedulers.Schedulers
+import io.reactivex.subjects.PublishSubject
 import kotlinx.android.synthetic.main.activity_main.*
 import java.lang.Exception
 
@@ -25,8 +23,73 @@ class MainActivity : AppCompatActivity() {
 
 //        simpleImpl()
 //        secondImpl()
-        thirdImpl()
+//        thirdImpl()
+        fourthImpl()
         setListener()
+    }
+
+    private fun fourthImpl() {
+        // Mostly used for connecting to APIs
+        val databaseSingle = Single.create<User> { emitter ->
+            val user = Database().getUser()
+            emitter.onSuccess(user)
+        }
+        databaseSingle
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(
+                        {
+                            Log.d(TAG, "onSuccess: ${it.email}")
+                        },
+                        {
+                            it.printStackTrace()
+                        }
+                ).let { compositeDisposable.add(it) }
+
+        // used when we're not interested on emitting data to the observer
+        val databaseCompletable = Completable.create { emitter ->
+            val user = User("hola@recodigo.com", "saul")
+            val success = Database().updateUser(user)
+            if (success)
+                emitter.onComplete()
+            else
+                emitter.onError(Throwable("Error updating db"))
+        }
+        databaseCompletable
+                .subscribeOn(Schedulers.io())
+                .subscribe(
+                        {
+                            Log.d(TAG, "onComplete")
+                        },
+                        {
+                            it.printStackTrace()
+                        }
+                ).let { compositeDisposable.add(it) }
+
+        // Used when we're not sure if a value will be emitted
+        val databaseMaybe = Maybe.create<User> { emitter ->
+            val user = Database().getUser("hola@recodigo.com")
+            user?.let {
+                emitter.onSuccess(it)
+                emitter.onComplete()
+            } ?: emitter.onComplete()
+        }
+        databaseMaybe
+                .isEmpty // if the user did not appear, it will return true. Otherwise false
+                .map { isEmpty ->
+                    if (isEmpty) "User does not exist"
+                    else "User exists"
+                }
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(
+                        {
+                            Log.d(TAG, it)
+                        },
+                        {
+                            it.printStackTrace()
+                        }
+                ).let { compositeDisposable.add(it) }
     }
 
     private fun thirdImpl() {
